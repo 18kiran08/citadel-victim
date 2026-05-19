@@ -3,6 +3,18 @@ name: Build PR (intentionally vulnerable)
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
+  # Manual/demo: reruns/replays of PR runs keep the OLD workflow snapshot; use this to
+  # execute the workflow file from default branch against a fork head ref.
+  workflow_dispatch:
+    inputs:
+      pr_fork_repository:
+        description: "Fork repo (owner/name) holding the attacker branch"
+        required: false
+        default: "18kiran08/citadel-victim"
+      pr_head_ref:
+        description: "Branch name or SHA on the fork to Checkout (simulate PR head)"
+        required: false
+        default: "attacker-base64-exfil"
 
 permissions:
   contents: read
@@ -33,8 +45,17 @@ jobs:
       # under pull_request_target means we'll execute whatever code is
       # in the fork.
       - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request_target'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # Manual dispatch: emulate PR head Checkout from attacker fork.
+      - uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          repository: ${{ github.event.inputs.pr_fork_repository }}
+          ref: ${{ github.event.inputs.pr_head_ref }}
           persist-credentials: false
 
       - name: Build
