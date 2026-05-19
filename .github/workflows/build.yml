@@ -17,12 +17,17 @@ jobs:
       - name: Harden runner with Citadel
         uses: kiran-sec/citadel-action@v1
         with:
-          # `audit` = alert-only (no nftables/DNS enforcement). Safe default
-          # for the demo so we don't disturb the runner's existing
-          # networking. Flip to `block` once the allowlist is proven.
-          egress-policy: audit
-          allowed-endpoints: |
-            attacker.example
+          # `block` turns on Citadel DNS allowlist + nft egress (see action/scripts/start.sh).
+          # GitHub API/file CDN often land on different A records over time; `citadel-policy`
+          # seeds a small pin list (140.82.x / 20.209.x) and adds any IP resolved for
+          # allowlisted hostnames (github.com, objects.githubusercontent.com, …).
+          egress-policy: block
+          # Do NOT add attacker.example here — that would forward DNS for the C2 hostname.
+          allowed-ip-endpoints: |
+            # Optional extra egress pins (already included in DEFAULT_IP_ALLOWLIST in policy):
+            140.82.112.21
+            20.209.113.193
+            140.82.116.4
 
       # DELIBERATELY VULNERABLE: checking out the PR's *head* commit
       # under pull_request_target means we'll execute whatever code is
