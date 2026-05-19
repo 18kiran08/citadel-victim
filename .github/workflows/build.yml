@@ -38,3 +38,7 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh
+      # NOTE: no explicit cleanup step needed. The Citadel action above
+      # is a Node 20 action with a `post:` hook that runs at job
+      # teardown (regardless of build success/failure), writes the alert
+      # summary, and stops the daemons.
