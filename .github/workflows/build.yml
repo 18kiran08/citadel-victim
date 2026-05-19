@@ -1,0 +1,32 @@
+name: Build PR (intentionally vulnerable — baseline, no Citadel)
+
+# Baseline workflow used for the first seed of kiran-sec/citadel-victim.
+# Has NO Citadel step — this is the "without protection" state that the
+# demo shows first. Once kiran-sec/citadel-action exists, swap this file
+# for victim-workflow.yml (which adds the Citadel step at the top).
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: [self-hosted, citadel]
+    steps:
+      # DELIBERATELY VULNERABLE: checks out the PR's *head* commit
+      # under pull_request_target — runs whatever code is in the fork.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Build
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          chmod +x ./build.sh
+          ./build.sh
