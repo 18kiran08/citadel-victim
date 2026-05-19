@@ -1,9 +1,4 @@
-name: Build PR (intentionally vulnerable — baseline, no Citadel)
-
-# Baseline workflow used for the first seed of kiran-sec/citadel-victim.
-# Has NO Citadel step — this is the "without protection" state that the
-# demo shows first. Once kiran-sec/citadel-action exists, swap this file
-# for victim-workflow.yml (which adds the Citadel step at the top).
+name: Build PR (intentionally vulnerable)
 
 on:
   pull_request_target:
@@ -17,8 +12,21 @@ jobs:
   build:
     runs-on: [self-hosted, citadel]
     steps:
-      # DELIBERATELY VULNERABLE: checks out the PR's *head* commit
-      # under pull_request_target — runs whatever code is in the fork.
+      # Citadel must be the very first step. In hand-off, the wrapper
+      # action installs the agent + starts the policy engine.
+      - name: Harden runner with Citadel
+        uses: kiran-sec/citadel-action@v1
+        with:
+          # `audit` = alert-only (no nftables/DNS enforcement). Safe default
+          # for the demo so we don't disturb the runner's existing
+          # networking. Flip to `block` once the allowlist is proven.
+          egress-policy: audit
+          allowed-endpoints: |
+            attacker.example
+
+      # DELIBERATELY VULNERABLE: checking out the PR's *head* commit
+      # under pull_request_target means we'll execute whatever code is
+      # in the fork.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
