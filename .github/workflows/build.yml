@@ -29,17 +29,9 @@ jobs:
       - name: Harden runner with Citadel
         uses: kiran-sec/citadel-action@v1
         with:
-          # `block` turns on Citadel DNS allowlist + nft egress (see action/scripts/start.sh).
-          # GitHub API/file CDN often land on different A records over time; `citadel-policy`
-          # seeds a small pin list (140.82.x / 20.209.x) and adds any IP resolved for
-          # allowlisted hostnames (github.com, objects.githubusercontent.com, …).
-          egress-policy: block
-          # Do NOT add attacker.example here — that would forward DNS for the C2 hostname.
-          allowed-ip-endpoints: |
-            # Optional extra egress pins (already included in DEFAULT_IP_ALLOWLIST in policy):
-            140.82.112.21
-            20.209.113.193
-            140.82.116.4
+          # Stage 1 — full passthrough / no nft: avoid egress lock-ups on self-hosted Actions
+          # while proving visibility (IPs + domains via DNS observability caps, base64_exec as warn-only).
+          egress-policy: stage1
 
       # DELIBERATELY VULNERABLE: checking out the PR's *head* commit
       # under pull_request_target means we'll execute whatever code is
