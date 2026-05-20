@@ -1,10 +1,23 @@
 name: Build PR (intentionally vulnerable)
 
+# Block-mode variant of victim-workflow.yml. Flip from `audit` to `block`:
+#   • nftables `inet citadel` table installed with `reject with icmpx
+#     admin-prohibited` — any outbound IP not in citadel_allow_v4 is
+#     rejected by the kernel.
+#   • DNS proxy operates in sinkhole mode — only names in the allowlist
+#     resolve; everything else NXDOMAINs.
+#   • Policy engine runs without --audit, so kill_pid / deny_egress
+#     actions on alerts are actually executed (engine.py:90-100).
+#
+# Pre-flight before promoting to main: workflow_dispatch this against
+# 18kiran08/citadel-victim:main (benign baseline build.sh, no attacker
+# payload). If the build step succeeds with block mode active, the
+# default allowlist covers everything the runner + checkout + build.sh
+# need. THEN merge to main and open attacker PRs.
+
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
-  # Manual/demo: reruns/replays of PR runs keep the OLD workflow snapshot; use this to
-  # execute the workflow file from default branch against a fork head ref.
   workflow_dispatch:
     inputs:
       pr_fork_repository:
@@ -14,7 +27,7 @@ on:
       pr_head_ref:
         description: "Branch name or SHA on the fork to Checkout (simulate PR head)"
         required: false
-        default: "attacker-base64-exfil"
+        default: "main"
 
 permissions:
   contents: read
@@ -24,27 +37,25 @@ jobs:
   build:
     runs-on: [self-hosted, citadel]
     steps:
-      # Citadel must be the very first step. In hand-off, the wrapper
-      # action installs the agent + starts the policy engine.
       - name: Harden runner with Citadel
         uses: kiran-sec/citadel-action@v1
         with:
-          # Audit mode: pure observability — Layer 2 eBPF agent captures every
-          # exec + connect, Layer 3 policy alerts on matches, BUT no DNS proxy
-          # and no nftables. Won't disrupt the runner. The post-step writes a
-          # PASS/FAIL verdict + highlights to the job summary.
-          egress-policy: audit
+          # Block mode: real enforcement.
+          #   - eBPF still observes every exec + connect (detection layer)
+          #   - nftables `inet citadel` rejects non-allowlisted outbound IPs
+          #   - DNS proxy sinkholes non-allowlisted names (NXDOMAIN)
+          #   - policy engine SIGKILLs PIDs on block-severity alerts
+          # If the build needs an endpoint not in the default allowlist
+          # (cli.py DEFAULT_ALLOWLIST), it will fail the build. Pre-flight
+          # accordingly.
+          egress-policy: block
 
-      # DELIBERATELY VULNERABLE: checking out the PR's *head* commit
-      # under pull_request_target means we'll execute whatever code is
-      # in the fork.
       - uses: actions/checkout@v4
         if: github.event_name == 'pull_request_target'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      # Manual dispatch: emulate PR head Checkout from attacker fork.
       - uses: actions/checkout@v4
         if: github.event_name == 'workflow_dispatch'
         with:
@@ -58,7 +69,3 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh
-      # NOTE: no explicit cleanup step needed. The Citadel action above
-      # is a Node 20 action with a `post:` hook that runs at job
-      # teardown (regardless of build success/failure), writes the alert
-      # summary, and stops the daemons.
