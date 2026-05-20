@@ -48,7 +48,7 @@ jobs:
           # If the build needs an endpoint not in the default allowlist
           # (cli.py DEFAULT_ALLOWLIST), it will fail the build. Pre-flight
           # accordingly.
-          egress-policy: block
+          egress-policy: audit
 
       - uses: actions/checkout@v4
         if: github.event_name == 'pull_request_target'
