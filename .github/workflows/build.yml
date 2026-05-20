@@ -29,9 +29,11 @@ jobs:
       - name: Harden runner with Citadel
         uses: kiran-sec/citadel-action@v1
         with:
-          # Stage 1 — full passthrough / no nft: avoid egress lock-ups on self-hosted Actions
-          # while proving visibility (IPs + domains via DNS observability caps, base64_exec as warn-only).
-          egress-policy: stage1
+          # Audit mode: pure observability — Layer 2 eBPF agent captures every
+          # exec + connect, Layer 3 policy alerts on matches, BUT no DNS proxy
+          # and no nftables. Won't disrupt the runner. The post-step writes a
+          # PASS/FAIL verdict + highlights to the job summary.
+          egress-policy: audit
 
       # DELIBERATELY VULNERABLE: checking out the PR's *head* commit
       # under pull_request_target means we'll execute whatever code is
